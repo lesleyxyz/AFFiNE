@@ -3,7 +3,9 @@ name: Release
 on:
   schedule:
     - cron: '0 9 * * *'
-
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       web:
