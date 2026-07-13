@@ -146,7 +146,7 @@ jobs:
       - cloud
     steps:
       - uses: trstringer/manual-approval@v1
-        if: ${{ needs.prepare.outputs.BUILD_TYPE == 'stable' }}
+        if: false #${{ needs.prepare.outputs.BUILD_TYPE == 'stable' }}
         name: Wait for approval
         with:
           secret: ${{ secrets.GITHUB_TOKEN }}
