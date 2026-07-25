@@ -145,23 +145,6 @@ jobs:
       - canary-gate
       - cloud
     steps:
-      - uses: trstringer/manual-approval@v1
-        if: false #${{ needs.prepare.outputs.BUILD_TYPE == 'stable' }}
-        name: Wait for approval
-        with:
-          secret: ${{ secrets.GITHUB_TOKEN }}
-          approvers: darkskygit
-          minimum-approvals: 1
-          fail-on-denial: true
-          issue-title: Please confirm to release docker image
-          issue-body: |
-            Env: ${{ needs.prepare.outputs.BUILD_TYPE }}
-            Candidate: ghcr.io/lesleyxyz/affine:${{ needs.prepare.outputs.BUILD_TYPE }}-${{ needs.prepare.outputs.GIT_SHORT_HASH }}
-            Tag: ghcr.io/lesleyxyz/affine:${{ needs.prepare.outputs.BUILD_TYPE }}
-
-            > comment with "approve", "approved", "lgtm", "yes" to approve
-            > comment with "deny", "denied", "no" to deny
-
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
