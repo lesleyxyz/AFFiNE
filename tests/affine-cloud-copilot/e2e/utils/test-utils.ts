@@ -1,8 +1,5 @@
 import { skipOnboarding } from '@affine-test/kit/playwright';
-import {
-  createRandomAIUser,
-  switchDefaultChatModel,
-} from '@affine-test/kit/utils/cloud';
+import { createRandomAIUser } from '@affine-test/kit/utils/cloud';
 import { openHomePage, setCoreUrl } from '@affine-test/kit/utils/load-page';
 import {
   clickNewPageButton,
@@ -62,19 +59,15 @@ export class TestUtils {
   }
 
   public async setupTestEnvironment(page: Page, defaultModel?: string) {
-    const hasExplicitModel = defaultModel !== undefined;
-    const selectedModel = defaultModel ?? 'gemini-2.5-flash';
-    await switchDefaultChatModel(selectedModel);
+    const selectedModel = defaultModel ?? 'gpt-5.6-luna';
 
     await skipOnboarding(page.context());
-    if (hasExplicitModel) {
-      await page.context().addInitScript(model => {
-        window.localStorage.setItem(
-          'global-state:AIModelId',
-          JSON.stringify(model)
-        );
-      }, selectedModel);
-    }
+    await page.context().addInitScript(model => {
+      window.localStorage.setItem(
+        'global-state:AIModelId',
+        JSON.stringify(model)
+      );
+    }, selectedModel);
     await openHomePage(page);
     await this.createNewPage(page);
   }
