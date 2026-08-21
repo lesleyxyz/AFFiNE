@@ -8,6 +8,7 @@ interface Context {
     health: Sinon.SinonStub;
     reconcileWorkspaceDocuments: Sinon.SinonStub;
     backfillMissingBlobMetadata: Sinon.SinonStub;
+    rebuildDocBlobRefs: Sinon.SinonStub;
     rebuildWorkspaceDocBlobRefs: Sinon.SinonStub;
     planUnreferencedWorkspaceBlobs: Sinon.SinonStub;
     executeBlobCleanupCandidates: Sinon.SinonStub;
@@ -45,6 +46,7 @@ test.beforeEach(t => {
       recovered: 0,
     }),
     backfillMissingBlobMetadata: Sinon.stub(),
+    rebuildDocBlobRefs: Sinon.stub(),
     rebuildWorkspaceDocBlobRefs: Sinon.stub(),
     planUnreferencedWorkspaceBlobs: Sinon.stub(),
     executeBlobCleanupCandidates: Sinon.stub(),
@@ -289,7 +291,32 @@ test('storage reconciliation still refreshes document retention without object s
   t.false(t.context.runtime.planUnreferencedWorkspaceBlobs.called);
 });
 
-test('document cleanup dispatches independent stable search and copilot effects', async t => {
+test('document projection worker drains metadata incrementally after a document merge', async t => {
+  t.context.runtime.rebuildDocBlobRefs.resolves({
+    scannedDocs: 1,
+    parsedDocs: 1,
+    refsWritten: 1,
+    refsDeleted: 0,
+    failedDocs: 0,
+    nextCursor: null,
+  });
+
+  await t.context.job.projectWorkspaceDocBlobRefs({
+    workspaceId: 'workspace-1',
+    docId: 'doc-1',
+    sourceRevision: 123,
+  });
+
+  t.true(
+    t.context.runtime.rebuildDocBlobRefs.calledOnceWith(
+      'workspace-1',
+      'doc-1',
+      123
+    )
+  );
+});
+
+test('document cleanup dispatches stable search effects', async t => {
   t.context.runtime.executeDocumentCleanupCandidates.resolves({
     scannedCandidates: 1,
     serializationRetries: 0,
@@ -305,7 +332,6 @@ test('document cleanup dispatches independent stable search and copilot effects'
         cleanupVersion: 'version-1',
         commentObjectsDone: true,
         searchDone: false,
-        copilotDone: false,
       },
     ],
   });
@@ -318,15 +344,6 @@ test('document cleanup dispatches independent stable search and copilot effects'
       Sinon.match({ docId: 'doc-1' }),
       {
         jobId: 'document-cleanup:search:workspace-1:doc-1:version-1',
-      }
-    )
-  );
-  t.true(
-    t.context.queue.add.calledWith(
-      'copilot.embedding.reconcileDocumentCleanup',
-      Sinon.match({ docId: 'doc-1' }),
-      {
-        jobId: 'document-cleanup:copilot:workspace-1:doc-1:version-1',
       }
     )
   );

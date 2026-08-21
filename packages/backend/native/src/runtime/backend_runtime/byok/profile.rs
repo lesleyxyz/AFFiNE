@@ -3,15 +3,12 @@ use std::collections::{HashMap, HashSet};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use super::{RuntimeError, RuntimeResult, admit_endpoint};
-use crate::{
-  llm::{
-    ByokProfileDefinition, ByokProfileOutput, ByokValidationOutput, CreateByokProfileInput, ProbeByokDraftInput,
-    ProbeByokProfileInput, ReorderByokProfilesInput, ReplaceByokProfileInput, RotateByokCredentialInput,
-    byok::{CredentialEnvelopeKey, SensitiveCredential, reconcile_validation, server_aad},
-    validate_definition,
-  },
-  runtime::config::CopilotByokRuntimeConfig,
+use super::{RuntimeError, RuntimeResult};
+use crate::llm::{
+  ByokProfileDefinition, ByokProfileOutput, ByokValidationOutput, CreateByokProfileInput, ProbeByokDraftInput,
+  ProbeByokProfileInput, ReorderByokProfilesInput, ReplaceByokProfileInput, RotateByokCredentialInput,
+  byok::{ByokPolicy, CredentialEnvelopeKey, SensitiveCredential, reconcile_validation, server_aad},
+  validate_definition,
 };
 
 #[derive(FromRow)]
@@ -56,7 +53,7 @@ pub(in super::super) async fn list(pool: &PgPool, workspace_id: &str) -> Runtime
 pub(in super::super) async fn create(
   pool: &PgPool,
   root_secret: &[u8],
-  policy: &CopilotByokRuntimeConfig,
+  policy: &ByokPolicy,
   input: CreateByokProfileInput,
 ) -> RuntimeResult<ByokProfileOutput> {
   require_text(&input.workspace_id, "workspaceId")?;
@@ -65,7 +62,7 @@ pub(in super::super) async fn create(
   require_text(&input.actor_user_id, "actorUserId")?;
   let definition = validate_definition(&input.provider, input.definition)
     .map_err(|error| RuntimeError::invalid_input(error.to_string()))?;
-  admit_endpoint(&definition, policy).await?;
+  policy.admit(&input.provider, &definition.endpoint).await?;
   let key = envelope_key(root_secret)?;
   let profile_id = Uuid::new_v4().to_string();
   let aad = server_aad(
@@ -103,6 +100,7 @@ pub(in super::super) async fn create(
       definition, sort_order, enabled, created_by, updated_by, created_at, updated_at
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT (workspace_id, provider, name) DO NOTHING
     RETURNING id, workspace_id, provider, name, description, encrypted_api_key,
               definition, sort_order, enabled, revision, credential_generation, validation
     "#,
@@ -117,9 +115,10 @@ pub(in super::super) async fn create(
   .bind(sort_order)
   .bind(input.enabled)
   .bind(&input.actor_user_id)
-  .fetch_one(&mut *tx)
+  .fetch_optional(&mut *tx)
   .await
-  .map_err(|error| RuntimeError::database("create BYOK profile failed", error))?;
+  .map_err(|error| RuntimeError::database("create BYOK profile failed", error))?
+  .ok_or_else(|| RuntimeError::invalid_input("BYOK profile name already exists"))?;
   tx.commit()
     .await
     .map_err(|error| RuntimeError::database("create BYOK profile commit failed", error))?;
@@ -129,7 +128,7 @@ pub(in super::super) async fn create(
 pub(in super::super) async fn replace(
   pool: &PgPool,
   root_secret: &[u8],
-  policy: &CopilotByokRuntimeConfig,
+  policy: &ByokPolicy,
   input: ReplaceByokProfileInput,
 ) -> RuntimeResult<ByokProfileOutput> {
   require_text(&input.workspace_id, "workspaceId")?;
@@ -147,7 +146,7 @@ pub(in super::super) async fn replace(
   }
   let definition = validate_definition(&admission.provider, input.definition)
     .map_err(|error| RuntimeError::invalid_input(error.to_string()))?;
-  admit_endpoint(&definition, policy).await?;
+  policy.admit(&admission.provider, &definition.endpoint).await?;
 
   let mut tx = pool
     .begin()
@@ -401,7 +400,7 @@ pub(in super::super) async fn reorder(
 pub(in super::super) async fn probe_profile(
   pool: &PgPool,
   root_secret: &[u8],
-  policy: &CopilotByokRuntimeConfig,
+  policy: &ByokPolicy,
   input: ProbeByokProfileInput,
 ) -> RuntimeResult<crate::llm::ByokProbeResultOutput> {
   let profile = sqlx::query_as::<_, ProfileRow>(
@@ -419,7 +418,7 @@ pub(in super::super) async fn probe_profile(
   .map_err(|error| RuntimeError::database("read BYOK profile for probe failed", error))?
   .ok_or_else(|| RuntimeError::invalid_input("BYOK profile not found"))?;
   let definition = parse_definition(profile.definition.clone())?;
-  admit_endpoint(&definition, policy).await?;
+  policy.admit(&profile.provider, &definition.endpoint).await?;
   let credential = envelope_key(root_secret)?
     .decrypt(
       &profile.encrypted_api_key,
@@ -461,12 +460,12 @@ pub(in super::super) async fn probe_profile(
 pub(in super::super) async fn probe_draft(
   pool: &PgPool,
   root_secret: &[u8],
-  policy: &CopilotByokRuntimeConfig,
+  policy: &ByokPolicy,
   input: ProbeByokDraftInput,
 ) -> RuntimeResult<crate::llm::ByokProbeResultOutput> {
   let definition = validate_definition(&input.provider, input.definition)
     .map_err(|error| RuntimeError::invalid_input(error.to_string()))?;
-  admit_endpoint(&definition, policy).await?;
+  policy.admit(&input.provider, &definition.endpoint).await?;
   let credential = match (input.credential, input.profile_id, input.expected_revision) {
     (Some(credential), None, None) => {
       require_text(&credential, "credential")?;

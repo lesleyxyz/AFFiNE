@@ -565,6 +565,16 @@ mod tests {
     );
 
     let chat = built_in_prompt("Chat With AFFiNE AI").expect("chat prompt");
+    let chat_tools = chat
+      .config
+      .as_ref()
+      .and_then(|config| config.get("tools"))
+      .and_then(Value::as_array)
+      .expect("chat tools");
+    assert!(chat_tools.iter().any(|tool| tool == "artifactRead"));
+    assert!(chat_tools.iter().any(|tool| tool == "artifactSearch"));
+    assert!(!chat_tools.iter().any(|tool| tool == "contextSearch"));
+    assert!(!chat_tools.iter().any(|tool| tool == "blobRead"));
     assert_eq!(chat.managed_targets, ["gpt-5.6-luna"]);
     assert_eq!(
       chat
@@ -587,13 +597,13 @@ mod tests {
     );
 
     let transcript = built_in_prompt("Transcript audio structured").expect("transcript prompt");
-    assert_eq!(transcript.managed_targets, ["gemini-3.5-flash-lite"]);
+    assert_eq!(transcript.managed_targets, ["gemini-3.7-flash"]);
     assert_eq!(
       transcript
         .managed_premium_targets
         .as_deref()
         .map(|targets| targets.iter().map(String::as_str).collect::<Vec<_>>()),
-      Some(vec!["gemini-3.6-flash"])
+      Some(vec!["gemini-3.7-flash"])
     );
   }
 }

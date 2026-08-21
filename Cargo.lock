@@ -76,14 +76,16 @@ dependencies = [
 
 [[package]]
 name = "affine_doc_loader"
-version = "0.1.4"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1344b7af4cfa7e4c17c676281db8f4244914779a59250fbe71c06b5219b15952"
+checksum = "d45f91ca0f91431eeaa05937033d97efd93c4e01d21855938b437c2d2f0684f6"
 dependencies = [
+ "chrono",
  "nanoid",
  "pulldown-cmark 0.13.1",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "thiserror 2.0.18",
  "y-octo",
 ]
@@ -149,6 +151,7 @@ dependencies = [
  "lru 0.16.3",
  "objc2",
  "objc2-foundation",
+ "serde_json",
  "thiserror 2.0.18",
  "tokio",
  "uniffi",
@@ -262,6 +265,7 @@ dependencies = [
  "llm_adapter",
  "llm_runtime",
  "matroska",
+ "memory-indexer",
  "mimalloc",
  "mp4parse",
  "napi",
@@ -3658,6 +3662,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
+ "webpki-roots 1.0.6",
 ]
 
 [[package]]
@@ -4753,9 +4758,9 @@ dependencies = [
 
 [[package]]
 name = "llm_adapter"
-version = "0.2.16"
+version = "0.2.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cfb4eab8636c2e3ac87a221630f6b458e1a7ffb32e3701576840871b98d1bc6"
+checksum = "5d13be366ea35d2a9966ad5770e3d070e495af4e1e6dd009638dee4b55ab45ed"
 dependencies = [
  "base64",
  "jsonschema",
@@ -4771,9 +4776,9 @@ dependencies = [
 
 [[package]]
 name = "llm_runtime"
-version = "0.2.9"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35d70efcecaf49ea990fb9596664cf9c146c0260e0a0ed5a643ab47673a0521a"
+checksum = "7390d9129578a2bac44e0e78a964f39e290d6678cbc5e508803a128d5b2ae5c1"
 dependencies = [
  "jsonschema",
  "llm_adapter",
@@ -5033,19 +5038,24 @@ dependencies = [
 
 [[package]]
 name = "memory-indexer"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53a349dd43a5b5efb437a192d7fe37e58feb94f094839d303482dc8bcc8d1043"
+checksum = "ff94e8411d369f3197d3bf8b57414651cbfe01353959f91dbc3bfb1f903ef9d3"
 dependencies = [
+ "bincode 2.0.1",
+ "crc32fast",
  "jieba-rs",
  "once_cell",
  "pinyin",
+ "roaring",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "smol_str",
  "strsim 0.11.1",
  "unicode-normalization",
  "unicode-script",
+ "zstd",
 ]
 
 [[package]]
@@ -6979,6 +6989,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3582f63211428f83597b51b2ddb88e2a91a9d52d12831f9d08f5e624e8977422"
 
 [[package]]
+name = "roaring"
+version = "0.11.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dedc5658c6ecb3bdb5ef5f3295bb9253f42dcf3fd1402c03f6b1f7659c3c4a9"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "serde",
+]
+
+[[package]]
 name = "roman-numerals-rs"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7825,6 +7846,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
+ "uuid",
  "webpki-roots 0.26.11",
 ]
 
@@ -7906,6 +7928,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
+ "uuid",
  "whoami",
 ]
 
@@ -7944,6 +7967,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
+ "uuid",
  "whoami",
 ]
 
@@ -7970,6 +7994,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "url",
+ "uuid",
 ]
 
 [[package]]

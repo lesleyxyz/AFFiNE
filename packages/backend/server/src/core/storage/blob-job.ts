@@ -5,8 +5,8 @@ import { PrismaClient } from '@prisma/client';
 import { EventBus, JobQueue, metrics, OnJob } from '../../base';
 import { StorageRuntimeProvider } from '../storage-runtime';
 
-// Queue keys are persisted API; keep the legacy backendRuntime.* names while
-// StorageBlobJob and StorageRuntimeProvider own the implementation.
+// Queue keys are persisted API; StorageBlobJob and StorageRuntimeProvider own
+// the implementation.
 declare global {
   interface Jobs {
     'backendRuntime.backfillMissingBlobMetadata': {
@@ -22,6 +22,11 @@ declare global {
       lastSid?: number;
       workspaceLimit?: number;
       docLimit?: number;
+    };
+    'backendRuntime.projectWorkspaceDocBlobRefs': {
+      workspaceId: string;
+      docId: string;
+      sourceRevision: number;
     };
     'backendRuntime.executeDocumentCleanupCandidates': {
       workspaceId?: string;
@@ -281,6 +286,23 @@ export class StorageBlobJob {
     }
   }
 
+  @OnJob('backendRuntime.projectWorkspaceDocBlobRefs')
+  async projectWorkspaceDocBlobRefs({
+    workspaceId,
+    docId,
+    sourceRevision,
+  }: Jobs['backendRuntime.projectWorkspaceDocBlobRefs']) {
+    const result = await this.rt.rebuildDocBlobRefs(
+      workspaceId,
+      docId,
+      sourceRevision
+    );
+    this.autoLog(
+      `projected doc blob refs workspace=${workspaceId} doc=${docId} sourceRevision=${sourceRevision} parsed=${result.parsedDocs} failed=${result.failedDocs}`,
+      Boolean(result.failedDocs)
+    );
+  }
+
   @OnJob('backendRuntime.executeDocumentCleanupCandidates')
   async executeDocumentCleanupCandidates({
     workspaceId,
@@ -303,15 +325,6 @@ export class StorageBlobJob {
         await this.queue.add('indexer.reconcileDocumentCleanup', effect, {
           jobId: `document-cleanup:search:${effect.workspaceId}:${effect.docId}:${effect.cleanupVersion}`,
         });
-      }
-      if (!effect.copilotDone) {
-        await this.queue.add(
-          'copilot.embedding.reconcileDocumentCleanup',
-          effect,
-          {
-            jobId: `document-cleanup:copilot:${effect.workspaceId}:${effect.docId}:${effect.cleanupVersion}`,
-          }
-        );
       }
       if (effect.commentObjectsDone) {
         await this.event.emitAsync('workspace.blobs.updated', {
