@@ -9,6 +9,7 @@ import {
   SearchPermissionSyncing,
   SearchProviderUnavailable,
   SpaceAccessDenied,
+  UserFriendlyError,
 } from '../../../base';
 import { ConfigFactory } from '../../../base/config';
 import { BackendRuntimeProvider } from '../../../core/backend-runtime';
@@ -31,7 +32,7 @@ function enabledServer() {
   };
 }
 
-test('reflects native search readiness in the Node feature flag', async t => {
+test('exposes the indexer capability while its projection is building', async t => {
   const runtime = {
     searchStatus: Sinon.stub(),
     searchAuthorized: Sinon.stub().resolves({
@@ -39,9 +40,6 @@ test('reflects native search readiness in the Node feature flag', async t => {
       value: { total: 0, nodes: [] },
     }),
   };
-  runtime.searchStatus.onFirstCall().resolves({ ready: true });
-  runtime.searchStatus.onSecondCall().resolves({ ready: false });
-  runtime.searchStatus.onThirdCall().resolves({ ready: true });
   const server = enabledServer();
   const service = new IndexerService(
     runtime as unknown as BackendRuntimeProvider,
@@ -53,9 +51,9 @@ test('reflects native search readiness in the Node feature flag', async t => {
   await service.onConfigChanged({ updates: { indexer: {} } } as never);
   await service.search('actor', 'workspace', {} as never);
 
-  t.is(server.enableFeature.callCount, 2);
-  t.true(server.disableFeature.calledOnce);
-  t.is(runtime.searchStatus.callCount, 3);
+  t.is(server.enableFeature.callCount, 3);
+  t.false(server.disableFeature.called);
+  t.false(runtime.searchStatus.called);
 });
 
 test('does not query native search when the indexer is disabled', async t => {
@@ -84,28 +82,23 @@ test('does not schedule or run native search reconciliation when disabled', asyn
     reconcileSearchProjection: Sinon.stub(),
     searchStatus: Sinon.stub(),
   };
-  const queue = { add: Sinon.stub() };
   const config = {
     config: { indexer: { enabled: false } },
   } as unknown as ConfigFactory;
   const job = new BackendRuntimeSearchJob(
     runtime as unknown as BackendRuntimeProvider,
-    queue as never,
     config
   );
 
-  await job.scheduleReconciliation();
-  t.is(queue.add.callCount, 0);
-  t.is(await job.reconcileProjection({ limit: 100 }), 0);
+  t.is(await job.reconcileProjection(), 0);
   t.false(runtime.reconcileSearchProjection.called);
   t.false(runtime.searchStatus.called);
 
   config.config.indexer.enabled = true;
-  await job.scheduleReconciliation();
-  t.deepEqual(queue.add.firstCall.args[2], {
-    jobId: 'backend-runtime-search-reconciliation',
-    removeOnFail: true,
-  });
+  runtime.reconcileSearchProjection.resolves(0);
+  runtime.searchStatus.resolves({ ready: true });
+  t.is(await job.reconcileProjection(), 0);
+  t.true(runtime.reconcileSearchProjection.calledOnceWithExactly(100));
 });
 
 test('maps native search results and typed errors at the Node boundary', async t => {
@@ -180,6 +173,7 @@ test('maps native search results and typed errors at the Node boundary', async t
   );
   t.is(aggregateResult.pagination.count, 1);
 
+  const mappings = [];
   for (const [errorCode, expected] of [
     ['workspace_denied', SpaceAccessDenied],
     ['invalid_request', InvalidIndexerInput],
@@ -194,8 +188,18 @@ test('maps native search results and typed errors at the Node boundary', async t
     const error = await t.throwsAsync(
       service.search('actor', 'workspace', input)
     );
+    if (!(error instanceof UserFriendlyError)) {
+      throw error;
+    }
     t.true(error instanceof expected, errorCode);
+    mappings.push({
+      errorCode,
+      name: error.name,
+      status: error.status,
+      type: error.type,
+    });
   }
+  t.snapshot(mappings);
 });
 
 test('searchDocs keeps filtering and enrichment in Node', async t => {

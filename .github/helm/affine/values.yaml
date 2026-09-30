@@ -15,6 +15,10 @@ global:
   secret:
     secretName: 'server-private-key'
     privateKey: ''
+    # Name of an externally managed Secret containing the license signing key.
+    # The chart never generates this key. Leave empty to disable license issuance.
+    licenseSecretName: ''
+    licensePrivateKeyKey: 'license-private-key'
   database:
     user: 'postgres'
     host: 'pg-postgresql'
@@ -52,8 +56,10 @@ front:
       name: affine-sync
       type: ClusterIP
       port: 3010
-      annotations:
-        cloud.google.com/backend-config: '{"default": "affine-api-backendconfig"}'
+      backendConfig:
+        name: affine-sync-backendconfig
+        timeoutSec: 10800
+      annotations: {}
     renderer:
       name: affine-renderer
       type: ClusterIP
